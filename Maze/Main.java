@@ -52,7 +52,12 @@ class State {
     }
 
     public String getStateString() {
-        return x + "," + y;
+        StringBuilder sb = new StringBuilder();
+        sb.append(x).append(",").append(y).append(";");
+        for (char[] row : maze) {
+        sb.append(new String(row));
+        }
+        return sb.toString();
     }
 }
 
@@ -81,14 +86,20 @@ class Node {
     }
 
     private double getUCTValue(int parentVisits) {
+        double explorationParameter = Math.sqrt(2.5) //Try something between 2.5 - 5.0 for High Exploration    
         if (visits == 0) return Double.MAX_VALUE;
-        return (value / visits) + Math.sqrt(2 * Math.log(parentVisits) / visits);
+        return (value / visits) + explorationParameter * Math.sqrt(Math.log(parentVisits) / visits);
     }
 
     public void expand() {
         List<State> possibleMoves = state.getPossibleMoves();
-        for (State move : possibleMoves) {
+        int maxChildren = Math.min(possibleMoves.size(), this.visits / 10 + 1); // Progressive widening
+        
+        for (int i = 0; i < maxChildren; i++) {
+            State move = possibleMoves.get(i);
+            if (!exploredStates.contains(move.getStateString())) {
             children.add(new Node(move, this));
+            }
         }
     }
 
@@ -105,7 +116,16 @@ class Node {
                 break;
             }
 
-            State nextState = moves.get(random.nextInt(moves.size()));
+            // State nextState = moves.get(random.nextInt(moves.size()));
+            // newExploredStates.add(nextState.getStateString());
+            // simState = nextState;
+            // steps++;
+
+            // Select the best move based on a heuristic (e.g., Manhattan distance to the goal)
+            State nextState = moves.stream()
+                .min(Comparator.comparingInt(s -> getManhattanDistance(s.x, s.y, goal[0], goal[1])))
+                .orElse(moves.get(new Random().nextInt(moves.size())));
+
             newExploredStates.add(nextState.getStateString());
             simState = nextState;
             steps++;
@@ -115,7 +135,11 @@ class Node {
         double explorationReward = (double) (newExploredStates.size() - exploredStates.size()) / state.maze.length / state.maze[0].length;
         double goalReward = simState.isGoal() ? 1.0 : 0.0;
 
-        return 0.9 * explorationReward + 0.3 * goalReward;
+        return 0.3 * explorationReward + 0.7 * goalReward; //Adjusted weights
+    }
+
+    private int getManhattanDistance(int x1, int y1, int x2, int y2) {
+        return Math.abs(x1 - x2) + Math.abs(y1 - y2);
     }
 
     public void backpropagate(double result) {
